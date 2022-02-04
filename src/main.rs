@@ -1,32 +1,101 @@
+#![allow(bad_style, non_camel_case_types)]
+
 use std::iter::once;
 use std::mem::{size_of, zeroed};
 use std::ptr::null_mut;
 
-use winapi::shared::minwindef::{HINSTANCE, UINT};
-use winapi::shared::windef::{COLORREF, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, HGDIOBJ, HWND, POINT, RECT};
-use winapi::um::libloaderapi::GetModuleHandleW;
-use winapi::um::wingdi::{
-    BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateSolidBrush,
-    DeleteDC, DeleteObject, SelectObject, SRCCOPY
-};
-use winapi::um::winuser::{
-    CF_BITMAP, ClientToScreen, CloseClipboard, CreateWindowExW, CS_HREDRAW, CS_VREDRAW,
-    DefWindowProcW, DispatchMessageW, EmptyClipboard, GetClientRect, GetDC, GetFocus,
-    GetMessageW, IDC_ARROW, LoadCursorW, LWA_ALPHA, LWA_COLORKEY, MOD_ALT, MOD_NOREPEAT,
-    MSG, OpenClipboard, PostQuitMessage, RegisterClassExW, RegisterHotKey, ReleaseDC,
-    SetClipboardData, SetFocus, SetForegroundWindow, SetLayeredWindowAttributes,
-    SetThreadDpiAwarenessContext, SetTimer, WM_DESTROY, WM_HOTKEY, WM_TIMER, WNDCLASSEXW,
-    WS_EX_CLIENTEDGE, WS_EX_LAYERED, WS_OVERLAPPEDWINDOW, WS_VISIBLE
-};
+type handle = *mut i32;
 
-const BACKGROUND_TRANSPARENT_COLOR: COLORREF = 0x123456;
+#[repr(C)]
+struct MSG {
+    hWnd: handle,
+    message: u32,
+    wParam: usize,
+    lParam: isize,
+    time: u32,
+    pt: POINT,
+}
+
+#[repr(C)]
+struct POINT {
+    x: i32,
+    y: i32,
+}
+
+#[repr(C)]
+struct RECT {
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+}
+
+#[repr(C)]
+struct WNDCLASSEXW {
+    cbSize: u32,
+    style: u32,
+    lpfnWndProc: Option<unsafe extern "system" fn(hWnd: handle, msg: u32, wparam: usize, lparam: isize) -> isize>,
+    cbClsExtra: i32,
+    cbWndExtra: i32,
+    hInstance: handle,
+    hIcon: handle,
+    hCursor: handle,
+    hbrBackground: handle,
+    lpszMenuName: *const u16,
+    lpszClassName: *const u16,
+    hIconSm: handle,
+}
+
+#[link(name = "user32")]
+extern "system" {
+    fn ClientToScreen(hWnd: handle, lpPoint: *mut POINT) -> i32;
+    fn CloseClipboard() -> i32;
+    fn EmptyClipboard() -> i32;
+    fn CreateWindowExW(
+        dwExStyle: u32, lpClassName: *const u16, lpWindowName: *const u16, dwStyle: u32,
+        x: i32, y: i32, w: i32, h: i32,
+        hWndParent: handle, hMenu: handle, hInstance: handle, lparam: handle
+    ) -> handle;
+    fn DefWindowProcW(hWnd: handle, Msg: u32, wParam: usize, lParam: isize) -> isize;
+    fn DispatchMessageW(lpmsg: *const MSG) -> isize;
+    fn GetClientRect(hWnd: handle, lpRect: *mut RECT) -> i32;
+    fn GetDC(hWnd: handle) -> handle;
+    fn GetFocus() -> handle;
+    fn GetMessageW(lpMsg: *mut MSG, hWnd: handle, wMsgFilterMin: u32, wMsgFilterMax: u32) -> i32;
+    fn LoadCursorW(hInstance: handle, lpCursorName: *const u16) -> handle;
+    fn OpenClipboard(hWnd: handle) -> i32;
+    fn PostQuitMessage(nExitCode: i32);
+    fn RegisterClassExW(lpWndClass: *const WNDCLASSEXW) -> u16;
+    fn RegisterHotKey(hwnd: handle, id: i32, fsModifiers: u32, vk: u32) -> i32;
+    fn ReleaseDC(hWnd: handle, hDC: handle) -> i32;
+    fn SetClipboardData(uFormat: u32, hMem: handle) -> handle;
+    fn SetFocus(hWnd: handle) -> handle;
+    fn SetForegroundWindow(hWnd: handle) -> i32;
+    fn SetLayeredWindowAttributes(hwnd: handle, crKey: u32, bAlpha: u8, dwFlags: u32) -> i32;
+    fn SetThreadDpiAwarenessContext(dpiContext: handle) -> handle;
+    fn SetTimer(hWnd: handle, nIDEvent: usize, uElapse: u32, proc: Option<unsafe extern "system" fn (handle, u32, usize, u32) -> ()>) -> usize;
+    fn GetModuleHandleW(lpModuleName: *const u16) -> handle;
+}
+
+#[link(name = "gdi32")]
+extern "stdcall" {
+    fn BitBlt(hdc: handle, x: i32, y: i32, cx: i32, cy: i32, hdcSrc: handle, x1: i32, y1: i32, rop: u32) -> i32;
+    fn CreateCompatibleBitmap(hdc: handle, cx: i32, cy: i32) -> handle;
+    fn CreateCompatibleDC(hdc: handle) -> handle;
+    fn CreateSolidBrush(color: u32) -> handle;
+    fn DeleteDC(hdc: handle) -> i32;
+    fn DeleteObject(ho: handle) -> i32;
+    fn SelectObject(hdc: handle, h: handle) -> handle;
+}
+
+const BACKGROUND_TRANSPARENT_COLOR: u32 = 0x123456;
 const TICK_DECREASE_STEP: u8 = 20;
 const HOTKEY_ID: i32 = 123456;
 const TIMER_ID: usize = 6543;
 
 static mut DRAWING_TICKS: u8 = 0;
 
-unsafe fn capture(hwnd: HWND) -> isize {
+unsafe fn capture(hwnd: handle) -> isize {
     let mut tl: POINT = POINT {
         x: 0,
         y: 0
@@ -44,35 +113,48 @@ unsafe fn capture(hwnd: HWND) -> isize {
     let dc = GetDC(null_mut());
     let hdc = CreateCompatibleDC(dc);
     let bitmap = CreateCompatibleBitmap(dc, w, h);
-    let old_obj = SelectObject(hdc, bitmap as HGDIOBJ);
+    let old_obj = SelectObject(hdc, bitmap);
 
-    BitBlt(hdc, 0, 0, w, h, dc, x, y, SRCCOPY);
+    BitBlt(hdc, 0, 0, w, h, dc, x, y, 0x00CC0020); // copy into dest.
 
     OpenClipboard(null_mut());
     EmptyClipboard();
-    SetClipboardData(CF_BITMAP, bitmap as HGDIOBJ);
+    // write to clipboard bitmap
+    SetClipboardData(2, bitmap);
     CloseClipboard();
-    //core::fmt::
 
     DRAWING_TICKS = u8::MAX;
 
     SelectObject(hdc, old_obj);
     DeleteDC(hdc);
     ReleaseDC(null_mut(), dc);
-    DeleteObject(bitmap as HGDIOBJ);
+    DeleteObject(bitmap);
     0
 }
 
-unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: usize, lparam: isize) -> isize {
+unsafe fn set_window_transparency(hwnd: handle) {
+    SetLayeredWindowAttributes(
+        hwnd,
+        BACKGROUND_TRANSPARENT_COLOR,
+        u8::MAX - if DRAWING_TICKS < u8::MAX / 2 { DRAWING_TICKS } else { u8::MAX - DRAWING_TICKS } * 2, 0b11
+    );
+}
+
+unsafe extern "system" fn window_proc(hwnd: handle, msg: u32, wparam: usize, lparam: isize) -> isize {
     match msg {
-        WM_DESTROY => {
+        // destroy
+        0x0002 => {
             PostQuitMessage(0);
             0
-        }, WM_TIMER if wparam == TIMER_ID && DRAWING_TICKS > 0 => {
-            SetLayeredWindowAttributes(hwnd, BACKGROUND_TRANSPARENT_COLOR, u8::MAX - if DRAWING_TICKS < u8::MAX / 2 { DRAWING_TICKS } else { u8::MAX - DRAWING_TICKS } * 2, LWA_ALPHA | LWA_COLORKEY);
+        },
+        // timer
+        0x0113 if wparam == TIMER_ID && DRAWING_TICKS > 0 => {
+            set_window_transparency(hwnd);
             DRAWING_TICKS = DRAWING_TICKS.saturating_sub(TICK_DECREASE_STEP);
             0
-        }, WM_HOTKEY if wparam as i32 == HOTKEY_ID => {
+        },
+        // hotkey
+        0x0312 if wparam as i32 == HOTKEY_ID => {
             if GetFocus() == hwnd {
                 capture(hwnd)
             } else {
@@ -85,19 +167,20 @@ unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: usize, lpara
     }
 }
 
-fn main(){
+fn main() {
     unsafe {
-        SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+        // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE
+        SetThreadDpiAwarenessContext(-2isize as handle);
 
         let win = WNDCLASSEXW {
-            cbSize: size_of::<WNDCLASSEXW>() as UINT,
-            style: CS_HREDRAW | CS_VREDRAW,
+            cbSize: size_of::<WNDCLASSEXW>() as u32,
+            style: 0b11, // VHRedraw
             lpfnWndProc: Some(window_proc),
             cbClsExtra: 0,
             cbWndExtra: 0,
-            hInstance: GetModuleHandleW(null_mut()) as HINSTANCE,
+            hInstance: GetModuleHandleW(null_mut()),
             hIcon: null_mut(),
-            hCursor: LoadCursorW(null_mut(), IDC_ARROW),
+            hCursor: LoadCursorW(null_mut(), 32512 as *const _), // arrow cursor
             hbrBackground: CreateSolidBrush(BACKGROUND_TRANSPARENT_COLOR),
             lpszMenuName: null_mut(),
             lpszClassName: "Main Capture Window".encode_utf16().chain(once(0)).collect::<Vec<u16>>().as_ptr(),
@@ -105,21 +188,21 @@ fn main(){
         };
 
         let hwnd = CreateWindowExW(
-            WS_EX_LAYERED | WS_EX_CLIENTEDGE,
+            0x00080200, //layered & client_edge
             RegisterClassExW(&win) as *const u16,
             "Capture".encode_utf16().chain(once(0)).collect::<Vec<u16>>().as_ptr(),
-            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            0x10CF0000, // overlapped window & visible
             200, 200,
             500, 500,
             null_mut(),
             null_mut(),
-            win.hInstance,
+            win.hInstance as handle,
             null_mut(),
         );
-        SetLayeredWindowAttributes(hwnd, BACKGROUND_TRANSPARENT_COLOR, 0, LWA_COLORKEY);
+        set_window_transparency(hwnd);
 
         // ALT+C
-        RegisterHotKey(hwnd, HOTKEY_ID, (MOD_NOREPEAT | MOD_ALT) as u32, 0x43);
+        RegisterHotKey(hwnd, HOTKEY_ID, 0x4001, 0x43); // only triggers once; ALT+C
         SetTimer(hwnd, TIMER_ID, 5, None);
 
         let mut msg: MSG = zeroed();
