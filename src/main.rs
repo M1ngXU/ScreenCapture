@@ -170,7 +170,7 @@ unsafe extern "system" fn window_proc(hwnd: HANDLE, msg: u32, wparam: usize, lpa
 fn main() {
     unsafe {
         // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE
-        SetThreadDpiAwarenessContext(-2isize as HANDLE);
+        SetThreadDpiAwarenessContext(-3isize as HANDLE);
 
         let win = WNDCLASSEXW {
             cbSize: size_of::<WNDCLASSEXW>() as u32,
