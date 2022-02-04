@@ -4,11 +4,11 @@ use std::iter::once;
 use std::mem::{size_of, zeroed};
 use std::ptr::null_mut;
 
-type handle = *mut i32;
+type HANDLE = *mut i32;
 
 #[repr(C)]
 struct MSG {
-    hWnd: handle,
+    hWnd: HANDLE,
     message: u32,
     wParam: usize,
     lParam: isize,
@@ -34,58 +34,58 @@ struct RECT {
 struct WNDCLASSEXW {
     cbSize: u32,
     style: u32,
-    lpfnWndProc: Option<unsafe extern "system" fn(hWnd: handle, msg: u32, wparam: usize, lparam: isize) -> isize>,
+    lpfnWndProc: Option<unsafe extern "system" fn(hWnd: HANDLE, msg: u32, wparam: usize, lparam: isize) -> isize>,
     cbClsExtra: i32,
     cbWndExtra: i32,
-    hInstance: handle,
-    hIcon: handle,
-    hCursor: handle,
-    hbrBackground: handle,
+    hInstance: HANDLE,
+    hIcon: HANDLE,
+    hCursor: HANDLE,
+    hbrBackground: HANDLE,
     lpszMenuName: *const u16,
     lpszClassName: *const u16,
-    hIconSm: handle,
+    hIconSm: HANDLE,
 }
 
 #[link(name = "user32")]
 extern "system" {
-    fn ClientToScreen(hWnd: handle, lpPoint: *mut POINT) -> i32;
+    fn ClientToScreen(hWnd: HANDLE, lpPoint: *mut POINT) -> i32;
     fn CloseClipboard() -> i32;
     fn EmptyClipboard() -> i32;
     fn CreateWindowExW(
         dwExStyle: u32, lpClassName: *const u16, lpWindowName: *const u16, dwStyle: u32,
         x: i32, y: i32, w: i32, h: i32,
-        hWndParent: handle, hMenu: handle, hInstance: handle, lparam: handle
-    ) -> handle;
-    fn DefWindowProcW(hWnd: handle, Msg: u32, wParam: usize, lParam: isize) -> isize;
+        hWndParent: HANDLE, hMenu: HANDLE, hInstance: HANDLE, lparam: HANDLE
+    ) -> HANDLE;
+    fn DefWindowProcW(hWnd: HANDLE, Msg: u32, wParam: usize, lParam: isize) -> isize;
     fn DispatchMessageW(lpmsg: *const MSG) -> isize;
-    fn GetClientRect(hWnd: handle, lpRect: *mut RECT) -> i32;
-    fn GetDC(hWnd: handle) -> handle;
-    fn GetFocus() -> handle;
-    fn GetMessageW(lpMsg: *mut MSG, hWnd: handle, wMsgFilterMin: u32, wMsgFilterMax: u32) -> i32;
-    fn LoadCursorW(hInstance: handle, lpCursorName: *const u16) -> handle;
-    fn OpenClipboard(hWnd: handle) -> i32;
+    fn GetClientRect(hWnd: HANDLE, lpRect: *mut RECT) -> i32;
+    fn GetDC(hWnd: HANDLE) -> HANDLE;
+    fn GetFocus() -> HANDLE;
+    fn GetMessageW(lpMsg: *mut MSG, hWnd: HANDLE, wMsgFilterMin: u32, wMsgFilterMax: u32) -> i32;
+    fn LoadCursorW(hInstance: HANDLE, lpCursorName: *const u16) -> HANDLE;
+    fn OpenClipboard(hWnd: HANDLE) -> i32;
     fn PostQuitMessage(nExitCode: i32);
     fn RegisterClassExW(lpWndClass: *const WNDCLASSEXW) -> u16;
-    fn RegisterHotKey(hwnd: handle, id: i32, fsModifiers: u32, vk: u32) -> i32;
-    fn ReleaseDC(hWnd: handle, hDC: handle) -> i32;
-    fn SetClipboardData(uFormat: u32, hMem: handle) -> handle;
-    fn SetFocus(hWnd: handle) -> handle;
-    fn SetForegroundWindow(hWnd: handle) -> i32;
-    fn SetLayeredWindowAttributes(hwnd: handle, crKey: u32, bAlpha: u8, dwFlags: u32) -> i32;
-    fn SetThreadDpiAwarenessContext(dpiContext: handle) -> handle;
-    fn SetTimer(hWnd: handle, nIDEvent: usize, uElapse: u32, proc: Option<unsafe extern "system" fn (handle, u32, usize, u32) -> ()>) -> usize;
-    fn GetModuleHandleW(lpModuleName: *const u16) -> handle;
+    fn RegisterHotKey(hwnd: HANDLE, id: i32, fsModifiers: u32, vk: u32) -> i32;
+    fn ReleaseDC(hWnd: HANDLE, hDC: HANDLE) -> i32;
+    fn SetClipboardData(uFormat: u32, hMem: HANDLE) -> HANDLE;
+    fn SetFocus(hWnd: HANDLE) -> HANDLE;
+    fn SetForegroundWindow(hWnd: HANDLE) -> i32;
+    fn SetLayeredWindowAttributes(hwnd: HANDLE, crKey: u32, bAlpha: u8, dwFlags: u32) -> i32;
+    fn SetThreadDpiAwarenessContext(dpiContext: HANDLE) -> HANDLE;
+    fn SetTimer(hWnd: HANDLE, nIDEvent: usize, uElapse: u32, proc: Option<unsafe extern "system" fn (HANDLE, u32, usize, u32) -> ()>) -> usize;
+    fn GetModuleHandleW(lpModuleName: *const u16) -> HANDLE;
 }
 
 #[link(name = "gdi32")]
 extern "stdcall" {
-    fn BitBlt(hdc: handle, x: i32, y: i32, cx: i32, cy: i32, hdcSrc: handle, x1: i32, y1: i32, rop: u32) -> i32;
-    fn CreateCompatibleBitmap(hdc: handle, cx: i32, cy: i32) -> handle;
-    fn CreateCompatibleDC(hdc: handle) -> handle;
-    fn CreateSolidBrush(color: u32) -> handle;
-    fn DeleteDC(hdc: handle) -> i32;
-    fn DeleteObject(ho: handle) -> i32;
-    fn SelectObject(hdc: handle, h: handle) -> handle;
+    fn BitBlt(hdc: HANDLE, x: i32, y: i32, cx: i32, cy: i32, hdcSrc: HANDLE, x1: i32, y1: i32, rop: u32) -> i32;
+    fn CreateCompatibleBitmap(hdc: HANDLE, cx: i32, cy: i32) -> HANDLE;
+    fn CreateCompatibleDC(hdc: HANDLE) -> HANDLE;
+    fn CreateSolidBrush(color: u32) -> HANDLE;
+    fn DeleteDC(hdc: HANDLE) -> i32;
+    fn DeleteObject(ho: HANDLE) -> i32;
+    fn SelectObject(hdc: HANDLE, h: HANDLE) -> HANDLE;
 }
 
 const BACKGROUND_TRANSPARENT_COLOR: u32 = 0x123456;
@@ -95,7 +95,7 @@ const TIMER_ID: usize = 6543;
 
 static mut DRAWING_TICKS: u8 = 0;
 
-unsafe fn capture(hwnd: handle) -> isize {
+unsafe fn capture(hwnd: HANDLE) -> isize {
     let mut tl: POINT = POINT {
         x: 0,
         y: 0
@@ -132,7 +132,7 @@ unsafe fn capture(hwnd: handle) -> isize {
     0
 }
 
-unsafe fn set_window_transparency(hwnd: handle) {
+unsafe fn set_window_transparency(hwnd: HANDLE) {
     SetLayeredWindowAttributes(
         hwnd,
         BACKGROUND_TRANSPARENT_COLOR,
@@ -140,7 +140,7 @@ unsafe fn set_window_transparency(hwnd: handle) {
     );
 }
 
-unsafe extern "system" fn window_proc(hwnd: handle, msg: u32, wparam: usize, lparam: isize) -> isize {
+unsafe extern "system" fn window_proc(hwnd: HANDLE, msg: u32, wparam: usize, lparam: isize) -> isize {
     match msg {
         // destroy
         0x0002 => {
@@ -170,7 +170,7 @@ unsafe extern "system" fn window_proc(hwnd: handle, msg: u32, wparam: usize, lpa
 fn main() {
     unsafe {
         // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE
-        SetThreadDpiAwarenessContext(-2isize as handle);
+        SetThreadDpiAwarenessContext(-2isize as HANDLE);
 
         let win = WNDCLASSEXW {
             cbSize: size_of::<WNDCLASSEXW>() as u32,
@@ -196,7 +196,7 @@ fn main() {
             500, 500,
             null_mut(),
             null_mut(),
-            win.hInstance as handle,
+            win.hInstance as HANDLE,
             null_mut(),
         );
         set_window_transparency(hwnd);
